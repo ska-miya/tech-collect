@@ -1,0 +1,8 @@
+{
+  "tags": ["ClaudeCode", "GoogleAntigravity"],
+  "keywords": ["Claude Code", "Google Antigravity"],
+  "sources": {
+    "qiita": { "enabled": true, "method": "tag_search" },
+    "zenn": { "enabled": true, "method": "rss_filter" }
+  }
+}

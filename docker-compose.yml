@@ -1,0 +1,8 @@
+services:
+  tech-collect:
+    build: .
+    env_file: .env
+    volumes:
+      - ./data:/app/data          # DB・ベクトルDBの永続化
+      - ./keywords.json:/app/keywords.json  # キーワード設定
+    command: python -m src.main run
