@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# 日本時間（UTC+9）
+JST = timezone(timedelta(hours=9))
+
+
+def _now_jst() -> datetime:
+    """日本時間の現在時刻を返す"""
+    return datetime.now(JST)
 
 from src.config import get_settings
 from src.db import save_publish_result
@@ -215,7 +223,7 @@ def _load_article_info_from_db() -> dict[str, dict]:
 
 def _build_properties(article: Article, summary: ArticleSummary, article_info: dict[str, dict] = None) -> dict:
     """ALLデータベース: ページプロパティ（一覧で見える情報をフル設定）"""
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = _now_jst().strftime("%Y-%m-%d")
 
     # multi_select用: キーワード（LLM抽出、最大5個）
     kw_options = [{"name": kw[:100]} for kw in (summary.keywords or [])[:5]]
@@ -326,7 +334,7 @@ def _create_daily_page(
 
     ページタイトル例: 「2026-04-06 技術記事レポート（12件）」
     """
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = _now_jst().strftime("%Y-%m-%d")
     title = f"{date_str} 技術記事レポート（{len(entries)}件）"
 
     children = _build_daily_children(entries, article_info)
@@ -362,7 +370,7 @@ def _build_daily_children(
     article_info: dict[str, dict] = None,
 ) -> list[dict]:
     """Dailyページの本文ブロックを構築"""
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = _now_jst().strftime("%Y-%m-%d")
     blocks: list[dict] = []
 
     # ヘッダー: サマリー情報
