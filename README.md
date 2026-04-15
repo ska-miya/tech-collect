@@ -177,3 +177,185 @@ pytest
 ## ライセンス
 
 MIT
+
+---
+
+# tech-collect (English)
+
+Automated Tech Blog Collector · RAG Summarizer · Notion Publisher
+
+Automatically collects technical articles from Qiita and Zenn every day, summarizes and classifies them using RAG (Retrieval-Augmented Generation), detects similar articles, and stores them in Notion in a structured format.
+
+## Features
+
+- **Multi-source collection**: Cross-platform article collection via Qiita API v2 + Zenn RSS
+- **RAG summarization**: Summarizes, classifies, and detects similar articles using ChromaDB (vector DB) + LLM
+- **Switchable LLM**: Switch between Ollama (local, free) / OpenAI / Claude with a single line
+- **Dual Notion output**: ALL database (archive & filter) + Daily page (daily report)
+- **A2A architecture**: Three agents working cooperatively
+- **GitHub Actions support**: Automatically runs daily to accumulate tech trends
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                 A2A Protocol (Agent-to-Agent)             │
+│                                                          │
+│  ┌────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │  Collector  │ →  │  Summarizer  │ →  │  Publisher   │  │
+│  │   Agent     │    │    Agent     │    │    Agent     │  │
+│  └─────┬──────┘    └──────┬───────┘    └──────┬───────┘  │
+│        │                  │                    │          │
+│   Qiita API v2       ChromaDB              Notion API    │
+│   Zenn RSS           + LLM                 ALL DB        │
+│                   (Ollama/OpenAI/          Daily Page     │
+│                    Claude)                               │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  SQLite: deduplication + metadata persistence      │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Three Agents
+
+| Agent | Role | Input | Output |
+|-------|------|-------|--------|
+| **Collector** | Article collection & deduplication | Keyword config | `CollectResult` |
+| **Summarizer** | RAG summarization, classification & similarity detection | `CollectResult` | `SummaryResult` |
+| **Publisher** | Notion posting (ALL + Daily) | `SummaryResult` | `PublishResult` |
+
+### Notion Output Structure
+
+```
+Tech Collect (parent page)
+├── Tech Collect - ALL (database)
+│   └── Article pages (12 properties + detailed body)
+└── Daily Reports
+    ├── 2026-04-07 Tech Article Report (65 articles)
+    ├── 2026-04-08 Tech Article Report (XX articles)
+    └── ...
+```
+
+**ALL Database Properties**:
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Title | title | Article title |
+| Source | select | Qiita / Zenn |
+| Category | select | AI/ML, Web Dev, Infrastructure, etc. |
+| Keywords | multi_select | LLM-extracted keywords |
+| Tags | multi_select | Original article tags |
+| URL | url | Link to original article |
+| Summary | rich_text | 3–4 line summary |
+| Highlights | rich_text | Differentiating points |
+| Similar Articles | rich_text | Similar article titles (with links) |
+| Likes | number | Sort by popularity |
+| Relevance | number(%) | Keyword relevance score |
+| Collected At | date | Date filter |
+| Favorite | checkbox | Bookmark |
+
+## Tech Stack
+
+| Category | Technology |
+|----------|------------|
+| Language | Python 3.9+ |
+| Data model | Pydantic |
+| CLI | Click + Rich |
+| Agent communication | A2A Protocol (python-a2a) |
+| Vector DB | ChromaDB (all-MiniLM-L6-v2 embedding) |
+| LLM | Ollama / OpenAI / Claude (switchable) |
+| API integration | Notion API, Qiita API v2, Zenn RSS |
+| Persistence | SQLite (WAL mode) |
+| HTTP | httpx (async) |
+| Container | Docker / docker-compose |
+| CI/CD | GitHub Actions (scheduled daily) |
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+pip install -e .
+```
+
+### 2. Configure environment variables
+
+```bash
+cp .env.example .env
+# Edit .env and set your API keys
+```
+
+### 3. Set up LLM
+
+**Ollama (local, free)**:
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull gemma3:4b
+ollama serve  # Run in a separate terminal
+```
+
+**OpenAI / Claude (cloud)**:
+Just change `LLM_PROVIDER` in `.env`.
+
+### 4. Set up Notion
+
+1. Create an integration at [Notion Integrations](https://www.notion.so/my-integrations)
+2. Set the API key in `.env`
+3. Create a page in Notion and share it with your integration
+4. The database will be created automatically on first run
+
+## Usage
+
+```bash
+# Run full pipeline (collect → summarize → post to Notion)
+python -m src.main run
+
+# Collect articles only
+python -m src.main collect-only
+
+# Manage keywords
+python -m src.main keyword list
+python -m src.main keyword add "Docker"
+python -m src.main keyword add "container" --type keyword
+python -m src.main keyword remove "Docker"
+
+# Check status
+python -m src.main status
+```
+
+## Switching LLM
+
+Change `LLM_PROVIDER` in `.env` to switch:
+
+| Provider | Value | Feature | Cost |
+|----------|-------|---------|------|
+| Ollama | `ollama` | Local execution. Privacy-friendly | Free |
+| OpenAI | `openai` | High quality. Recommended for GitHub Actions | 65 articles ≈ $0.02 |
+| Claude | `claude` | Strong Japanese language support | 65 articles ≈ $0.03 |
+
+## GitHub Actions (Daily Automation)
+
+Set the following in **Settings > Secrets and variables > Actions**:
+
+| Secret | Required | Description |
+|--------|:--------:|-------------|
+| `LLM_PROVIDER` | ✓ | `openai` recommended |
+| `OPENAI_API_KEY` | ✓ | OpenAI API key |
+| `NOTION_API_KEY` | ✓ | Notion API key |
+| `NOTION_DATABASE_ID` | ✓ | ALL database ID |
+| `NOTION_DAILY_PAGE_ID` | ✓ | Parent page ID for Daily reports |
+| `QIITA_ACCESS_TOKEN` | - | Optional: relaxes rate limits |
+
+Runs automatically at 7:00 AM JST every day. Manual execution is also available (Actions > Run workflow).
+
+## Testing
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+## License
+
+MIT
